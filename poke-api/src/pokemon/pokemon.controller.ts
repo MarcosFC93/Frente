@@ -8,6 +8,6 @@ export class PokemonController {
   @Get(':name')
   async getPokemonAbilities(@Param('name') name: string) {
     const abilities = await this.pokemonService.getPokemonAbilities(name);
-    return { name, abilities };
+    return abilities;
   }
 }
