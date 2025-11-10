@@ -36,6 +36,28 @@ interface PokemonListApiResponse {
   }>;
 }
 
+interface AbilityEffectEntry {
+  effect: string;
+  short_effect: string;
+  language: {
+    name: string;
+    url: string;
+  };
+}
+
+interface AbilityApiResponse {
+  id: number;
+  name: string;
+  effect_entries: AbilityEffectEntry[];
+  names: Array<{
+    name: string;
+    language: {
+      name: string;
+      url: string;
+    };
+  }>;
+}
+
 @Injectable()
 export class PokemonService {
   private readonly logger = new Logger(PokemonService.name);
@@ -153,6 +175,63 @@ export class PokemonService {
     } catch (error) {
       this.logger.error('Failed to fetch Pokemon list:', error.message);
       throw new NotFoundException('Erro ao buscar lista de Pokémon. Tente novamente.');
+    }
+  }
+
+  async getAbilityDetail(abilityName: string): Promise<{ name: string; effect: string; shortEffect?: string }> {
+    const normalizedName = this.normalizePokemonName(abilityName);
+    const cacheKey = `ability-detail-${normalizedName}`;
+
+    // Verifica se já existe no cache
+    const cachedAbility = await this.cacheManager.get<{ name: string; effect: string; shortEffect?: string }>(cacheKey);
+    if (cachedAbility) {
+      this.logger.debug(`Cache hit for Ability: ${normalizedName}`);
+      return cachedAbility;
+    }
+
+    this.logger.debug(`Cache miss for Ability: ${normalizedName}, fetching from API`);
+
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get<AbilityApiResponse>(`${this.baseUrl}/ability/${normalizedName}`)
+          .pipe(
+            timeout(this.httpTimeout),
+            catchError((error) => {
+              this.logger.error(`Error fetching Ability ${normalizedName}:`, error.message);
+              throw error;
+            })
+          )
+      );
+
+      // Busca a entrada em inglês
+      const effectEntry = data.effect_entries.find(
+        entry => entry.language.name === 'en'
+      );
+
+      if (!effectEntry) {
+        this.logger.warn(`No effect entry found for ability: ${normalizedName}`);
+        throw new NotFoundException(`Descrição da habilidade "${abilityName}" não encontrada.`);
+      }
+
+      const abilityDetail = {
+        name: normalizedName,
+        effect: effectEntry.effect,
+        shortEffect: effectEntry.short_effect,
+      };
+
+      // Armazena no cache
+      await this.cacheManager.set(cacheKey, abilityDetail);
+      this.logger.debug(`Cached ability detail for: ${normalizedName}`);
+
+      return abilityDetail;
+    } catch (error) {
+      this.logger.error(`Failed to fetch Ability ${normalizedName}:`, error.message);
+
+      if (error.response?.status === 404) {
+        throw new NotFoundException(`Habilidade "${abilityName}" não encontrada.`);
+      }
+
+      throw new NotFoundException(`Erro ao buscar habilidade "${abilityName}". Tente novamente.`);
     }
   }
 

@@ -39,3 +39,24 @@ export class PokemonAbilitiesResponseDto {
   })
   fromCache?: boolean;
 }
+
+export class AbilityDetailDto {
+  @ApiProperty({
+    description: 'Nome da habilidade',
+    example: 'static',
+  })
+  name: string;
+
+  @ApiProperty({
+    description: 'Descrição da habilidade em português',
+    example: 'Pokémon com esta habilidade têm 30% de chance de paralisar o oponente ao serem atingidos por um ataque físico.',
+  })
+  effect: string;
+
+  @ApiProperty({
+    description: 'Descrição curta da habilidade em português',
+    example: 'Chance de paralisar ao contato',
+    required: false,
+  })
+  shortEffect?: string;
+}

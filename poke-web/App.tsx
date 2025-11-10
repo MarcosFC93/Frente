@@ -24,10 +24,23 @@ interface PokemonData {
   sprite: string;
 }
 
+interface AbilityDetail {
+  name: string;
+  effect: string;
+  shortEffect?: string;
+}
+
 // Componente otimizado para item de habilidade
-const AbilityItem = React.memo(({ item }: { item: string }) => (
+const AbilityItem = React.memo(({ item, effect }: { item: string; effect?: string }) => (
   <View style={styles.abilityItem}>
-    <Text style={styles.abilityText}>⚡ {item}</Text>
+    <View style={styles.abilityHeader}>
+      <Text style={styles.abilityText}>⚡ {item}</Text>
+    </View>
+    {effect && (
+      <View style={styles.abilityDescription}>
+        <Text style={styles.abilityDescriptionText}>{effect}</Text>
+      </View>
+    )}
   </View>
 ));
 
@@ -50,11 +63,13 @@ const SuggestionItem = React.memo(({
 export default function App() {
   const [pokemonName, setPokemonName] = useState('');
   const [pokemonData, setPokemonData] = useState<PokemonData | null>(null);
+  const [abilityDetails, setAbilityDetails] = useState<Record<string, AbilityDetail>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [pokemonList, setPokemonList] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadingAbilities, setLoadingAbilities] = useState(false);
   
   // Refs para controle
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -137,6 +152,34 @@ export default function App() {
     searchPokemon(pokemon);
   }, []);
 
+  // Buscar detalhes das habilidades
+  const fetchAbilityDetails = useCallback(async (abilities: string[]) => {
+    console.log('🔍 Buscando detalhes para habilidades:', abilities);
+    setLoadingAbilities(true);
+    const details: Record<string, AbilityDetail> = {};
+    
+    try {
+      await Promise.all(
+        abilities.map(async (ability) => {
+          try {
+            console.log(`📡 Fazendo requisição para: ${API_URL}/pokemon/ability/${ability}`);
+            const response = await axios.get(`${API_URL}/pokemon/ability/${ability}`);
+            console.log(`✅ Resposta recebida para ${ability}:`, response.data);
+            details[ability] = response.data;
+          } catch (err) {
+            console.log(`❌ Erro ao buscar detalhes da habilidade ${ability}:`, err);
+          }
+        })
+      );
+      console.log('📦 Todos os detalhes coletados:', details);
+      setAbilityDetails(details);
+    } catch (err) {
+      console.log('❌ Erro ao buscar detalhes das habilidades:', err);
+    } finally {
+      setLoadingAbilities(false);
+    }
+  }, []);
+
   const searchPokemon = useCallback(async (customName?: string) => {
     const searchName = customName || pokemonName;
     
@@ -169,6 +212,12 @@ export default function App() {
         abilities: response.data.abilities || response.data,
         sprite: response.data.sprite || '',
       });
+      
+      // Buscar detalhes das habilidades
+      const abilities = response.data.abilities || response.data;
+      if (abilities && abilities.length > 0) {
+        await fetchAbilityDetails(abilities);
+      }
     } catch (err: any) {
       if (axios.isCancel(err)) {
         console.log('Search cancelled');
@@ -184,15 +233,15 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [pokemonName]);
+  }, [pokemonName, fetchAbilityDetails]);
 
   const renderSuggestionItem = useCallback(({ item }: { item: string }) => (
     <SuggestionItem pokemon={item} onPress={selectPokemon} />
   ), [selectPokemon]);
 
   const renderAbilityItem = useCallback(({ item }: { item: string }) => (
-    <AbilityItem item={item} />
-  ), []);
+    <AbilityItem item={item} effect={abilityDetails[item]?.effect} />
+  ), [abilityDetails]);
 
   const keyExtractor = useCallback((item: string, index: number) => `${item}-${index}`, []);
 
@@ -504,13 +553,30 @@ const styles = StyleSheet.create({
   },
   abilityItem: {
     backgroundColor: '#16213e',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+  abilityHeader: {
+    marginBottom: 4,
   },
   abilityText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  abilityDescription: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#0f3460',
+  },
+  abilityDescriptionText: {
+    color: '#AAA',
+    fontSize: 14,
+    lineHeight: 20,
   },
   emptyStateIcon: {
     fontSize: 80,

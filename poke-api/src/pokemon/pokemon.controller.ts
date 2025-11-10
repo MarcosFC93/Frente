@@ -1,7 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { PokemonService } from './pokemon.service';
-import { GetPokemonAbilitiesDto, PokemonAbilitiesResponseDto } from './dto/pokemon.dto';
+import { GetPokemonAbilitiesDto, PokemonAbilitiesResponseDto, AbilityDetailDto } from './dto/pokemon.dto';
 
 @ApiTags('pokemon')
 @Controller('pokemon')
@@ -57,5 +57,38 @@ export class PokemonController {
       abilities: data.abilities,
       sprite: data.sprite,
     };
+  }
+
+  @Get('ability/:name')
+  @ApiOperation({ 
+    summary: 'Get ability details',
+    description: 'Returns detailed description of an ability in English.',
+  })
+  @ApiParam({
+    name: 'name',
+    description: 'Ability name (case-insensitive)',
+    example: 'static',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ability details found successfully',
+    type: AbilityDetailDto,
+    example: {
+      name: 'static',
+      effect: 'Whenever this Pokémon is hit by a contact move, the attacking Pokémon has a 30% chance of being paralyzed.',
+      shortEffect: 'Has a 30% chance of paralyzing attacking Pokémon on contact.',
+    },
+  })
+  @ApiNotFoundResponse({
+    description: 'Ability not found',
+    example: {
+      statusCode: 404,
+      message: 'Ability "nonexistent" not found.',
+      error: 'Not Found',
+    },
+  })
+  async getAbilityDetail(@Param('name') name: string): Promise<AbilityDetailDto> {
+    return await this.pokemonService.getAbilityDetail(name);
   }
 }
