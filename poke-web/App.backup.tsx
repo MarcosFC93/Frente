@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,10 +11,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import axios from 'axios';
 
 // Configure o URL da sua API aqui
+// Para web use localhost, para dispositivo físico use o IP da máquina
 const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://localhost:3000';
 
 interface PokemonData {
@@ -22,66 +24,27 @@ interface PokemonData {
   abilities: string[];
 }
 
-// Componente otimizado para item de habilidade
-const AbilityItem = React.memo(({ item }: { item: string }) => (
-  <View style={styles.abilityItem}>
-    <Text style={styles.abilityText}>⚡ {item}</Text>
-  </View>
-));
-
-// Componente otimizado para item de sugestão
-const SuggestionItem = React.memo(({ 
-  pokemon, 
-  onPress 
-}: { 
-  pokemon: string; 
-  onPress: (pokemon: string) => void;
-}) => (
-  <TouchableOpacity
-    style={styles.suggestionItem}
-    onPress={() => onPress(pokemon)}
-  >
-    <Text style={styles.suggestionText}>{pokemon}</Text>
-  </TouchableOpacity>
-));
-
 export default function App() {
   const [pokemonName, setPokemonName] = useState('');
   const [pokemonData, setPokemonData] = useState<PokemonData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredPokemon, setFilteredPokemon] = useState<string[]>([]);
   const [pokemonList, setPokemonList] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(true);
-  
-  // Refs para controle
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Carrega a lista de pokémons ao iniciar o app
   useEffect(() => {
     loadPokemonList();
-    
-    // Cleanup: cancela requisições pendentes ao desmontar
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, []);
 
   const loadPokemonList = async () => {
     try {
       setLoadingList(true);
-      const response = await axios.get(`${API_URL}/pokemon`, {
-        signal: abortControllerRef.current?.signal
-      });
+      const response = await axios.get(`${API_URL}/pokemon`);
       setPokemonList(response.data);
     } catch (err) {
-      if (axios.isCancel(err)) {
-        console.log('Request cancelled');
-        return;
-      }
       console.error('Erro ao carregar lista de Pokémon:', err);
       // Fallback para lista básica se a API falhar
       setPokemonList([
@@ -93,49 +56,54 @@ export default function App() {
     }
   };
 
-  // Memoiza a lista filtrada para evitar recalcular a cada render
-  const filteredPokemon = useMemo(() => {
-    if (pokemonList.length === 0) return [];
-    
-    if (pokemonName.trim().length > 0) {
-      return pokemonList
-        .filter(pokemon => pokemon.toLowerCase().includes(pokemonName.toLowerCase()))
-        .slice(0, 20);
-    }
-    return pokemonList.slice(0, 20);
-  }, [pokemonName, pokemonList]);
-
-  // useCallback para evitar recriar funções a cada render
-  const handleInputChange = useCallback((text: string) => {
+  const handleInputChange = (text: string) => {
     setPokemonName(text);
     
-    // Debounce para filtros (opcional, melhora em listas muito grandes)
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-    
-    setShowSuggestions(text.length > 0 || pokemonList.length > 0);
-  }, [pokemonList.length]);
-
-  const handleInputFocus = useCallback(() => {
     if (pokemonList.length > 0) {
+      if (text.trim().length > 0) {
+        // Filtra pokémons que contêm o texto digitado
+        const filtered = pokemonList.filter(pokemon =>
+          pokemon.toLowerCase().includes(text.toLowerCase())
+        ).slice(0, 15); // Limita a 15 sugestões quando está filtrando
+        setFilteredPokemon(filtered);
+        setShowSuggestions(filtered.length > 0);
+      } else {
+        // Se não há texto, mostra os primeiros 15 pokémons
+        setFilteredPokemon(pokemonList.slice(0, 15));
+      }
+    }
+  };
+
+  const handleInputFocus = () => {
+    if (pokemonList.length > 0) {
+      if (pokemonName.trim().length > 0) {
+        // Se há texto, filtra
+        const filtered = pokemonList.filter(pokemon =>
+          pokemon.toLowerCase().includes(pokemonName.toLowerCase())
+        ).slice(0, 15);
+        setFilteredPokemon(filtered);
+      } else {
+        // Se não há texto, mostra os primeiros 15
+        setFilteredPokemon(pokemonList.slice(0, 15));
+      }
       setShowSuggestions(true);
     }
-  }, [pokemonList.length]);
+  };
 
-  const handleInputBlur = useCallback(() => {
+  const handleInputBlur = () => {
+    // Delay para permitir que o clique no item funcione
     setTimeout(() => {
       setShowSuggestions(false);
     }, 200);
-  }, []);
+  };
 
-  const selectPokemon = useCallback((pokemon: string) => {
+  const selectPokemon = (pokemon: string) => {
     setPokemonName(pokemon);
     setShowSuggestions(false);
     searchPokemon(pokemon);
-  }, []);
+  };
 
-  const searchPokemon = useCallback(async (customName?: string) => {
+  const searchPokemon = async (customName?: string) => {
     const searchName = customName || pokemonName;
     
     if (!searchName.trim()) {
@@ -143,35 +111,18 @@ export default function App() {
       return;
     }
 
-    // Cancela requisição anterior se existir
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // Cria novo AbortController para esta requisição
-    abortControllerRef.current = new AbortController();
-
     setShowSuggestions(false);
     setLoading(true);
     setError('');
     setPokemonData(null);
 
     try {
-      const response = await axios.get(
-        `${API_URL}/pokemon/${searchName.toLowerCase().trim()}`,
-        { signal: abortControllerRef.current.signal }
-      );
-      
+      const response = await axios.get(`${API_URL}/pokemon/${searchName.toLowerCase().trim()}`);
       setPokemonData({
         name: searchName.toLowerCase(),
         abilities: response.data,
       });
     } catch (err: any) {
-      if (axios.isCancel(err)) {
-        console.log('Search cancelled');
-        return;
-      }
-      
       if (err.response?.status === 404) {
         setError(`Pokémon "${searchName}" não encontrado`);
       } else {
@@ -181,17 +132,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [pokemonName]);
+  };
 
-  const renderSuggestionItem = useCallback(({ item }: { item: string }) => (
-    <SuggestionItem pokemon={item} onPress={selectPokemon} />
-  ), [selectPokemon]);
-
-  const renderAbilityItem = useCallback(({ item }: { item: string }) => (
-    <AbilityItem item={item} />
-  ), []);
-
-  const keyExtractor = useCallback((item: string, index: number) => `${item}-${index}`, []);
+  const renderAbilityItem = ({ item }: { item: string }) => (
+    <View style={styles.abilityItem}>
+      <Text style={styles.abilityText}>⚡ {item}</Text>
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -235,25 +182,24 @@ export default function App() {
             </TouchableOpacity>
           </View>
           {showSuggestions && filteredPokemon.length > 0 && (
-            <FlatList
-              data={filteredPokemon}
-              renderItem={renderSuggestionItem}
-              keyExtractor={keyExtractor}
-              style={styles.suggestionsContainer}
-              windowSize={5}
-              removeClippedSubviews={true}
-              initialNumToRender={15}
-              maxToRenderPerBatch={10}
-              ListFooterComponent={
-                pokemonName.trim().length === 0 && pokemonList.length > 20 ? (
-                  <View style={styles.suggestionFooter}>
-                    <Text style={styles.suggestionFooterText}>
-                      Digite para filtrar entre {pokemonList.length} pokémons...
-                    </Text>
-                  </View>
-                ) : null
-              }
-            />
+            <ScrollView style={styles.suggestionsContainer} nestedScrollEnabled>
+              {filteredPokemon.map((pokemon, index) => (
+                <TouchableOpacity
+                  key={`${pokemon}-${index}`}
+                  style={styles.suggestionItem}
+                  onPress={() => selectPokemon(pokemon)}
+                >
+                  <Text style={styles.suggestionText}>{pokemon}</Text>
+                </TouchableOpacity>
+              ))}
+              {pokemonName.trim().length === 0 && pokemonList.length > 15 && (
+                <View style={styles.suggestionFooter}>
+                  <Text style={styles.suggestionFooterText}>
+                    Digite para filtrar entre {pokemonList.length} pokémons...
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
           )}
         </View>
         <TouchableOpacity
@@ -291,9 +237,8 @@ export default function App() {
             <FlatList
               data={pokemonData.abilities}
               renderItem={renderAbilityItem}
-              keyExtractor={keyExtractor}
+              keyExtractor={(item, index) => `${item}-${index}`}
               style={styles.abilitiesList}
-              removeClippedSubviews={true}
             />
           </View>
         )}
@@ -380,7 +325,7 @@ const styles = StyleSheet.create({
     top: 55,
     left: 0,
     right: 0,
-    maxHeight: 250,
+    maxHeight: 200,
     backgroundColor: '#0f3460',
     borderRadius: 15,
     shadowColor: '#000',
