@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import axios from 'axios';
 
@@ -20,6 +21,7 @@ const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://localh
 interface PokemonData {
   name: string;
   abilities: string[];
+  sprite: string;
 }
 
 // Componente otimizado para item de habilidade
@@ -164,7 +166,8 @@ export default function App() {
       
       setPokemonData({
         name: searchName.toLowerCase(),
-        abilities: response.data,
+        abilities: response.data.abilities || response.data,
+        sprite: response.data.sprite || '',
       });
     } catch (err: any) {
       if (axios.isCancel(err)) {
@@ -284,9 +287,18 @@ export default function App() {
 
         {pokemonData && !loading && (
           <View style={styles.pokemonCard}>
-            <Text style={styles.pokemonName}>
-              {pokemonData.name.toUpperCase()}
-            </Text>
+            <View style={styles.pokemonHeader}>
+              {pokemonData.sprite && (
+                <Image 
+                  source={{ uri: pokemonData.sprite }}
+                  style={styles.pokemonSprite}
+                  resizeMode="contain"
+                />
+              )}
+              <Text style={styles.pokemonName}>
+                {pokemonData.name.toUpperCase()}
+              </Text>
+            </View>
             <Text style={styles.abilitiesTitle}>Habilidades:</Text>
             <FlatList
               data={pokemonData.abilities}
@@ -464,12 +476,22 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  pokemonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    gap: 15,
+  },
+  pokemonSprite: {
+    width: 80,
+    height: 80,
+  },
   pokemonName: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#FF6B6B',
     textAlign: 'center',
-    marginBottom: 20,
   },
   abilitiesTitle: {
     fontSize: 18,

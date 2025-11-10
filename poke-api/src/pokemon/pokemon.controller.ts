@@ -26,7 +26,7 @@ export class PokemonController {
   @Get(':name')
   @ApiOperation({ 
     summary: 'Buscar habilidades de um Pokémon',
-    description: 'Retorna uma lista com todas as habilidades do Pokémon especificado. Utiliza cache para otimizar performance.',
+    description: 'Retorna as habilidades e sprite do Pokémon especificado. Utiliza cache para otimizar performance.',
   })
   @ApiParam({
     name: 'name',
@@ -36,9 +36,12 @@ export class PokemonController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Habilidades encontradas com sucesso',
-    type: [String],
-    example: ['static', 'lightning-rod'],
+    description: 'Dados do Pokémon encontrados com sucesso',
+    type: PokemonAbilitiesResponseDto,
+    example: {
+      abilities: ['static', 'lightning-rod'],
+      sprite: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png',
+    },
   })
   @ApiNotFoundResponse({
     description: 'Pokémon não encontrado',
@@ -48,7 +51,11 @@ export class PokemonController {
       error: 'Not Found',
     },
   })
-  async getPokemonAbilities(@Param('name') name: string): Promise<string[]> {
-    return await this.pokemonService.getPokemonAbilities(name);
+  async getPokemonAbilities(@Param('name') name: string): Promise<PokemonAbilitiesResponseDto> {
+    const data = await this.pokemonService.getPokemonAbilities(name);
+    return {
+      abilities: data.abilities,
+      sprite: data.sprite,
+    };
   }
 }

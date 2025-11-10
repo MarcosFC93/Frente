@@ -18,6 +18,12 @@ interface PokemonApiResponse {
   id: number;
   name: string;
   abilities: PokemonAbility[];
+  sprites: {
+    front_default: string | null;
+    front_shiny: string | null;
+    front_female: string | null;
+    back_default: string | null;
+  };
 }
 
 interface PokemonListApiResponse {
@@ -45,15 +51,15 @@ export class PokemonService {
     this.httpTimeout = this.configService.get<number>('HTTP_TIMEOUT', 5000);
   }
 
-  async getPokemonAbilities(name: string): Promise<string[]> {
+  async getPokemonAbilities(name: string): Promise<{ abilities: string[]; sprite: string }> {
     const normalizedName = this.normalizePokemonName(name);
-    const cacheKey = `pokemon-abilities-${normalizedName}`;
+    const cacheKey = `pokemon-data-${normalizedName}`;
     
     // Verifica se já existe no cache
-    const cachedAbilities = await this.cacheManager.get<string[]>(cacheKey);
-    if (cachedAbilities) {
+    const cachedData = await this.cacheManager.get<{ abilities: string[]; sprite: string }>(cacheKey);
+    if (cachedData) {
       this.logger.debug(`Cache hit for Pokemon: ${normalizedName}`);
-      return cachedAbilities;
+      return cachedData;
     }
 
     this.logger.debug(`Cache miss for Pokemon: ${normalizedName}, fetching from API`);
@@ -75,11 +81,16 @@ export class PokemonService {
         .map((item: PokemonAbility) => item.ability.name)
         .sort();
 
-      // Armazena no cache
-      await this.cacheManager.set(cacheKey, abilities);
-      this.logger.debug(`Cached abilities for Pokemon: ${normalizedName}`);
+      // Extrai o sprite frontal padrão
+      const sprite = data.sprites.front_default || '';
 
-      return abilities;
+      const pokemonData = { abilities, sprite };
+
+      // Armazena no cache
+      await this.cacheManager.set(cacheKey, pokemonData);
+      this.logger.debug(`Cached data for Pokemon: ${normalizedName}`);
+
+      return pokemonData;
     } catch (error) {
       this.logger.error(`Failed to fetch Pokemon ${normalizedName}:`, error.message);
       
