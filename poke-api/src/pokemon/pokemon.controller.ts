@@ -8,6 +8,21 @@ import { GetPokemonAbilitiesDto, PokemonAbilitiesResponseDto } from './dto/pokem
 export class PokemonController {
   constructor(private readonly pokemonService: PokemonService) {}
 
+  @Get()
+  @ApiOperation({ 
+    summary: 'Listar todos os Pokémons',
+    description: 'Retorna uma lista com os nomes de todos os Pokémons disponíveis. Utiliza cache para otimizar performance.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de Pokémons obtida com sucesso',
+    type: [String],
+    example: ['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon'],
+  })
+  async getAllPokemon(): Promise<string[]> {
+    return await this.pokemonService.getAllPokemon();
+  }
+
   @Get(':name')
   @ApiOperation({ 
     summary: 'Buscar habilidades de um Pokémon',
